@@ -271,6 +271,7 @@ RUN apk add --no-cache                \
         font-noto-cjk                 \
         ghostscript                   \
         netcat-openbsd                \
+        openh264                      \
         openjdk11-jdk                 \
         postgresql${PG_MAJOR}         \
         postgresql${PG_MAJOR}-client  \

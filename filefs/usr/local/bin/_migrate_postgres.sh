@@ -65,20 +65,16 @@ echo "Detected PostgreSQL ${old_major} data directory. Starting automated upgrad
 mkdir -p "${upgrade_root}" "${socket_dir}"
 chmod 700 "${socket_dir}"
 
-# Cleanly shut down the old cluster if it's running or has stale state
-# This is required for pg_upgrade to validate the source cluster
-echo "Ensuring old PostgreSQL ${old_major} cluster is cleanly shut down..."
+# Reset the WAL on the old cluster so pg_upgrade can proceed
+# This must be done in-place before we backup the directory
+echo "Resetting WAL on PostgreSQL ${old_major} cluster..."
+if ! su - "${postgres_user}" -c "${old_bindir}/pg_resetwal -f \"${pgdata}\"" &>/dev/null; then
+    echo "Warning: pg_resetwal did not succeed, but continuing..." >&2
+fi
+
+# Clean up stale state files
 rm -f "${pgdata}/postmaster.pid" "${pgdata}/recovery.done"
 rm -f "${pgdata}/standby.signal" "${pgdata}/recovery.signal"
-
-# Try to use pg_ctl to clean shut down if the server is running
-# If that doesn't work, use pg_resetwal to reset the WAL state
-if ! "${old_bindir}/pg_ctl" -D "${pgdata}" -m fast stop &>/dev/null 2>&1; then
-    # Server is not running, but cluster may be in inconsistent state
-    # Use pg_resetwal to reset the WAL and allow pg_upgrade to proceed
-    echo "Using pg_resetwal to reset WAL state on old cluster..."
-    "${old_bindir}/pg_resetwal" -f "${pgdata}" &>/dev/null || true
-fi
 
 sleep 1
 mv "${pgdata}" "${backup_dir}"

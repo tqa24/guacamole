@@ -14,12 +14,15 @@ socket_dir="/tmp/pg_upgrade"
 success=0
 
 if [ ! -s "${pgdata}/PG_VERSION" ]; then
+    echo "No PG_VERSION file found, skipping migration."
     exit 0
 fi
 
 detected_major="$(cat "${pgdata}/PG_VERSION")"
+echo "Detected PG_VERSION: ${detected_major}"
 
 if [ "${detected_major}" = "${current_major}" ]; then
+    echo "Data directory is already PostgreSQL ${current_major}, skipping migration."
     exit 0
 fi
 
@@ -28,10 +31,10 @@ if [ "${detected_major}" != "${old_major}" ]; then
     exit 1
 fi
 
+# Clean up stale backup directory if it exists from a failed migration
 if [ -e "${backup_dir}" ]; then
-    echo "Migration cannot continue because backup directory ${backup_dir} already exists." >&2
-    echo "Resolve or remove that directory before retrying startup." >&2
-    exit 1
+    echo "Found previous backup at ${backup_dir}, removing it to retry migration..."
+    rm -rf "${backup_dir}"
 fi
 
 if [ ! -x "${old_bindir}/postgres" ] || [ ! -x "${new_bindir}/pg_upgrade" ] || [ ! -x "${new_bindir}/initdb" ]; then
@@ -68,7 +71,9 @@ chmod 700 "${socket_dir}"
 # Reset the WAL on the old cluster so pg_upgrade can proceed
 # This must be done in-place before we backup the directory
 echo "Resetting WAL on PostgreSQL ${old_major} cluster..."
-if ! su - "${postgres_user}" -c "${old_bindir}/pg_resetwal -f \"${pgdata}\"" &>/dev/null; then
+# Make sure the directory is owned by postgres before running pg_resetwal
+chown -R "${postgres_user}:${postgres_user}" "${pgdata}"
+if ! "${old_bindir}/pg_resetwal" -f "${pgdata}" >/dev/null 2>&1; then
     echo "Warning: pg_resetwal did not succeed, but continuing..." >&2
 fi
 

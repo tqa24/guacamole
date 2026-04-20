@@ -96,11 +96,14 @@ printf '%s\n' "${POSTGRES_PASSWORD:-}" > "${pwfile}"
 
 cd "${upgrade_root}"
 
+echo "Running pg_upgrade in copy mode from ${backup_dir} to ${pgdata}."
+
 "${new_bindir}/pg_upgrade" \
     --old-bindir="${old_bindir}" \
     --new-bindir="${new_bindir}" \
     --old-datadir="${backup_dir}" \
     --new-datadir="${pgdata}" \
+    --copy \
     --username="${postgres_user}" \
     --jobs="$(getconf _NPROCESSORS_ONLN)" \
     --retain \

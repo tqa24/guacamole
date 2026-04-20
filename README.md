@@ -4,9 +4,17 @@
 
 A Docker Container for [Apache Guacamole](https://guacamole.apache.org/), a client-less remote desktop gateway. It supports standard protocols like VNC, RDP, and SSH over HTML5.
 
-Supported Linux OS: amd64, arm64, ppc64el
+Supported Linux OS: amd64, arm64
 
-This container runs the guacamole web client, the guacd server and a postgres database (version 13).
+This container runs the guacamole web client, the guacd server and a postgres database (version 16).
+
+The image builds guacd from guacamole-server source during docker build and enables a broad optional dependency set (RDP, VNC, SSH, Telnet, Kubernetes, PulseAudio, WebP, and FFmpeg/libav tooling support) so useful codecs/plugins are available out of the box.
+
+FreeRDP is also compiled from source (currently 3.24.2) with audio/video codec support explicitly enabled: FFmpeg-based DSP and H.264, OpenH264, Opus, GSM, FAAC/FAAD2 AAC, SOX resampler, JPEG, and PulseAudio. This avoids relying on whichever codec flags the Alpine distro package maintainer chose to include.
+
+FreeRDP is also built from source with FFmpeg, swscale, OpenH264, Opus, GSM, AAC, soxr, and PulseAudio support enabled, rather than relying on Alpine's packaged feature set. Guacamole 1.6.0 currently treats FreeRDP 3.x as experimental, so broad codec/media support comes with that upstream caveat.
+
+On first start with an existing PostgreSQL 13 data directory in `/config/postgres`, the container automatically performs an in-place major upgrade to PostgreSQL 16 using `pg_upgrade`. The original PG13 data directory is preserved as `/config/postgres-v13` until you remove it after verifying the upgrade.
 
 ## Usage (Multi-Arch)
 

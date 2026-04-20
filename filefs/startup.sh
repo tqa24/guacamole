@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 # Create password if DB not initialized
 if [ -f "/config/postgres/PG_VERSION" ]; then
@@ -29,6 +29,9 @@ fi
 
 echo "Running startup scripts"
 /usr/local/bin/_startup.sh
+
+echo "Checking PostgreSQL major version migration"
+gosu postgres bash /usr/local/bin/_migrate_postgres.sh
 
 echo "Init DB Check"
 /usr/local/bin/_postgres.sh postgres &

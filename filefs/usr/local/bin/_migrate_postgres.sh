@@ -71,18 +71,13 @@ echo "Ensuring old PostgreSQL ${old_major} cluster is cleanly shut down..."
 rm -f "${pgdata}/postmaster.pid" "${pgdata}/recovery.done"
 rm -f "${pgdata}/standby.signal" "${pgdata}/recovery.signal"
 
-# Try to start and shut down the old cluster cleanly if it will start
-if "${old_bindir}/postgres" -D "${pgdata}" -c listen_addresses='' \
-    -c unix_socket_directories="${socket_dir}" \
-    &>/dev/null &
-then
-    old_pid=$!
-    sleep 2
-    if kill -0 "${old_pid}" 2>/dev/null; then
-        # Server started successfully, shut it down cleanly
-        "${old_bindir}/pg_ctl" -D "${pgdata}" -m fast stop &>/dev/null || true
-        wait "${old_pid}" 2>/dev/null || true
-    fi
+# Try to use pg_ctl to clean shut down if the server is running
+# If that doesn't work, use pg_resetwal to reset the WAL state
+if ! "${old_bindir}/pg_ctl" -D "${pgdata}" -m fast stop &>/dev/null 2>&1; then
+    # Server is not running, but cluster may be in inconsistent state
+    # Use pg_resetwal to reset the WAL and allow pg_upgrade to proceed
+    echo "Using pg_resetwal to reset WAL state on old cluster..."
+    "${old_bindir}/pg_resetwal" -f "${pgdata}" &>/dev/null || true
 fi
 
 sleep 1

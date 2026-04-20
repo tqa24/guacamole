@@ -5,7 +5,7 @@ set -Eeuo pipefail
 current_major="${PG_MAJOR:?}"
 old_major="${OLD_PG_MAJOR:-13}"
 pgdata="${PGDATA:?}"
-postgres_user="${POSTGRES_USER:?}"
+upgrade_user="${PG_UPGRADE_USER:-postgres}"
 old_bindir="/opt/postgresql${old_major}/bin"
 new_bindir="/usr/libexec/postgresql${current_major}"
 backup_dir="${pgdata}-v${old_major}"
@@ -31,10 +31,10 @@ if [ "${detected_major}" != "${old_major}" ]; then
     exit 1
 fi
 
-# Clean up stale backup directory if it exists from a failed migration
 if [ -e "${backup_dir}" ]; then
-    echo "Found previous backup at ${backup_dir}, removing it to retry migration..."
-    rm -rf "${backup_dir}"
+    echo "Migration cannot continue because backup directory ${backup_dir} already exists." >&2
+    echo "Resolve or remove that directory before retrying startup." >&2
+    exit 1
 fi
 
 if [ ! -x "${old_bindir}/postgres" ] || [ ! -x "${new_bindir}/pg_upgrade" ] || [ ! -x "${new_bindir}/initdb" ]; then
@@ -64,6 +64,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "Detected PostgreSQL ${old_major} data directory. Starting automated upgrade to ${current_major}."
+echo "Using PostgreSQL superuser '${upgrade_user}' for upgrade operations."
 
 mkdir -p "${upgrade_root}" "${socket_dir}"
 chmod 700 "${socket_dir}"
@@ -71,8 +72,6 @@ chmod 700 "${socket_dir}"
 # Reset the WAL on the old cluster so pg_upgrade can proceed
 # This must be done in-place before we backup the directory
 echo "Resetting WAL on PostgreSQL ${old_major} cluster..."
-# Make sure the directory is owned by postgres before running pg_resetwal
-chown -R "${postgres_user}:${postgres_user}" "${pgdata}"
 if ! "${old_bindir}/pg_resetwal" -f "${pgdata}" >/dev/null 2>&1; then
     echo "Warning: pg_resetwal did not succeed, but continuing..." >&2
 fi
@@ -90,7 +89,7 @@ pwfile="$(mktemp)"
 printf '%s\n' "${POSTGRES_PASSWORD:-}" > "${pwfile}"
 
 "${new_bindir}/initdb" \
-    --username="${postgres_user}" \
+    --username="${upgrade_user}" \
     --pwfile="${pwfile}" \
     -D "${pgdata}"
 
@@ -104,7 +103,7 @@ echo "Running pg_upgrade in copy mode from ${backup_dir} to ${pgdata}."
     --old-datadir="${backup_dir}" \
     --new-datadir="${pgdata}" \
     --copy \
-    --username="${postgres_user}" \
+    --username="${upgrade_user}" \
     --jobs="$(getconf _NPROCESSORS_ONLN)" \
     --retain \
     --socketdir="${socket_dir}" \

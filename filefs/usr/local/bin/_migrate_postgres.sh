@@ -65,7 +65,27 @@ echo "Detected PostgreSQL ${old_major} data directory. Starting automated upgrad
 mkdir -p "${upgrade_root}" "${socket_dir}"
 chmod 700 "${socket_dir}"
 
-rm -f "${pgdata}/postmaster.pid"
+# Cleanly shut down the old cluster if it's running or has stale state
+# This is required for pg_upgrade to validate the source cluster
+echo "Ensuring old PostgreSQL ${old_major} cluster is cleanly shut down..."
+rm -f "${pgdata}/postmaster.pid" "${pgdata}/recovery.done"
+rm -f "${pgdata}/standby.signal" "${pgdata}/recovery.signal"
+
+# Try to start and shut down the old cluster cleanly if it will start
+if "${old_bindir}/postgres" -D "${pgdata}" -c listen_addresses='' \
+    -c unix_socket_directories="${socket_dir}" \
+    &>/dev/null &
+then
+    old_pid=$!
+    sleep 2
+    if kill -0 "${old_pid}" 2>/dev/null; then
+        # Server started successfully, shut it down cleanly
+        "${old_bindir}/pg_ctl" -D "${pgdata}" -m fast stop &>/dev/null || true
+        wait "${old_pid}" 2>/dev/null || true
+    fi
+fi
+
+sleep 1
 mv "${pgdata}" "${backup_dir}"
 mkdir -p "${pgdata}"
 chmod 700 "${pgdata}"

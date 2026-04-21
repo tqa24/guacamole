@@ -51,6 +51,7 @@ RUN apk add --no-cache                \
     ninja                             \
     openh264-dev                      \
     openssl-dev                       \
+    x264-dev                          \
     opus-dev                          \
     pkgconf                           \
     pulseaudio-dev                    \
@@ -105,7 +106,7 @@ RUN set -eux; \
     -DWITH_VIDEO_FFMPEG=ON \
     -DWITH_WAYLAND=OFF \
     -DWITH_X11=OFF \
-    -DWITH_X264=OFF; \
+    -DWITH_X264=ON; \
   cmake --build /tmp/freerdp-build --parallel "$(getconf _NPROCESSORS_ONLN)"; \
   cmake --install /tmp/freerdp-build
 
@@ -156,6 +157,12 @@ RUN set -eux; \
     tar -xzf /tmp/guacamole-server.tar.gz -C /tmp; \
     mv "/tmp/guacamole-server-${VERSION}" "${BUILD_DIR}"; \
     cd "${BUILD_DIR}"; \
+    sed -i \
+      's/freerdp_settings_set_bool(rdp_settings, FreeRDP_SupportGraphicsPipeline, TRUE);/freerdp_settings_set_bool(rdp_settings, FreeRDP_SupportGraphicsPipeline, TRUE);\n        freerdp_settings_set_bool(rdp_settings, FreeRDP_GfxH264, TRUE);/' \
+      "${BUILD_DIR}/src/protocols/rdp/settings.c"; \
+    sed -i \
+      's/rdp_settings->SupportGraphicsPipeline = TRUE;/rdp_settings->SupportGraphicsPipeline = TRUE;\n        rdp_settings->GfxH264 = TRUE;/' \
+      "${BUILD_DIR}/src/protocols/rdp/settings.c"; \
     ./configure \
       --prefix="${PREFIX_DIR}" \
       --with-kubernetes \
@@ -272,6 +279,7 @@ RUN apk add --no-cache                \
         ghostscript                   \
         netcat-openbsd                \
         openh264                      \
+        x264-libs                     \
         openjdk11-jdk                 \
         postgresql${PG_MAJOR}         \
         postgresql${PG_MAJOR}-client  \
